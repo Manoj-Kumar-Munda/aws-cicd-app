@@ -38,6 +38,26 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Inspect OIDC identity
+        env:
+          EC2_ROLE: ${{ secrets.EC2_ROLE }}
+          EC2_REGION: ${{ secrets.EC2_REGION }}
+        run: |
+          echo "=== OIDC Token Claims ==="
+          curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | \
+          python3 -c '
+          import base64, json, sys
+          token = json.load(sys.stdin)["value"]
+          payload = token.split(".")[1]
+          payload += "=" * (-len(payload) % 4)
+          claims = json.loads(base64.urlsafe_b64decode(payload))
+          print(json.dumps({"iss": claims.get("iss"), "aud": claims.get("aud"), "sub": claims.get("sub")}, indent=2))
+          '
+          echo "=== Target Role & Region ==="
+          echo "EC2_ROLE: $EC2_ROLE"
+          echo "EC2_REGION: $EC2_REGION"
+
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
